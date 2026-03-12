@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ROODS | Loyalty Program</title>
+    <link rel="stylesheet" href="src/style.css?v=4">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700&display=swap" rel="stylesheet">
+</head>
+
+
+<body>
+    <div id="app" class="app-container">
+        <!-- Background elements for glassmorphism -->
+        <div class="bg-blur blur-1"></div>
+        <div class="bg-blur blur-2"></div>
+
+        <header class="main-header">
+            <div class="logo-container">
+                <img src="Logo-Roods.png" alt="ROODS Logo" class="main-logo-img" id="mainLogo">
+            </div>
+            <p class="tagline">Programa Cavernícolas Frecuentes</p>
+            <div style="font-size: 0.6rem; opacity: 0.5; text-align: center; margin-top: 5px;">v1.8.0 - Actualizada 5
+                Marzo</div>
+        </header>
+
+        <main class="content-area">
+            <!-- Navigation Grid -->
+            <section id="menuSection" class="section active">
+                <h2 class="section-title">¿Qué deseas hacer hoy?</h2>
+                <div class="menu-grid">
+                    <button class="menu-card primary" data-section="register">
+                        <span class="card-icon">👤</span>
+                        <div class="card-info">
+                            <h3>Registrar Cliente</h3>
+                            <p>Nuevo miembro</p>
+                        </div>
+                    </button>
+                    <button class="menu-card primary" data-section="stamps">
+                        <span class="card-icon">🧋</span>
+                        <div class="card-info">
+                            <h3>Agregar Sello</h3>
+                            <p>Escanear o buscar</p>
+                        </div>
+                    </button>
+                    <button class="menu-card secondary" data-section="manage">
+                        <span class="card-icon">📋</span>
+                        <div class="card-info">
+                            <h3>Gestionar Clientes</h3>
+                            <p>Ver y editar</p>
+                        </div>
+                    </button>
+                    <button class="menu-card accent" data-section="rewards">
+                        <span class="card-icon">🎁</span>
+                        <div class="card-info">
+                            <h3>Registro de Premios</h3>
+                            <p>Folios y canjes</p>
+                        </div>
+                    </button>
+                    <button class="menu-card highlight" data-section="birthdays">
+                        <span class="card-icon">🎂</span>
+                        <div class="card-info">
+                            <h3>Cumpleañeros del Día</h3>
+                            <p>Felicitar clientes</p>
+                        </div>
+                    </button>
+                    <button class="menu-card dark" id="btnSettings">
+                        <span class="card-icon">⚙️</span>
+                        <div class="card-info">
+                            <h3>Ajustes / Nube</h3>
+                            <p>Configuración y WhatsApp</p>
+                        </div>
+                    </button>
+                </div>
+                <div class="scanner-trigger-box">
+
+                </div>
+            </section>
+
+            <!-- Registration Section -->
+            <section id="registerSection" class="section">
+                <button class="btn-back">← Volver</button>
+                <div class="card glass">
+                    <h2 class="card-title">Registro de Cliente</h2>
+                    <form id="registerForm" class="loyalty-form">
+                        <div class="form-group">
+                            <label>Nombre completo</label>
+                            <input type="text" id="regName" placeholder="Ej: María García" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Cumpleaños</label>
+                            <div class="birthday-inputs">
+                                <input type="number" id="regBdayDay" placeholder="Día (1-31)" min="1" max="31" required>
+                                <select id="regBdayMonth" required>
+                                    <option value="" disabled selected>Mes</option>
+                                    <option value="01">Enero</option>
+                                    <option value="02">Febrero</option>
+                                    <option value="03">Marzo</option>
+                                    <option value="04">Abril</option>
+                                    <option value="05">Mayo</option>
+                                    <option value="06">Junio</option>
+                                    <option value="07">Julio</option>
+                                    <option value="08">Agosto</option>
+                                    <option value="09">Septiembre</option>
+                                    <option value="10">Octubre</option>
+                                    <option value="11">Noviembre</option>
+                                    <option value="12">Diciembre</option>
+                                </select>
+                                <input type="number" id="regBdayYear" placeholder="Año (opcional)" min="1900"
+                                    max="2100">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label>Teléfono (WhatsApp)</label>
+                            <input type="tel" id="regPhone" placeholder="+52 ..." required>
+                        </div>
+                        <div class="form-group">
+                        </div>
+                        <button type="submit" class="btn-submit">Registrar Cliente</button>
+                    </form>
+                </div>
+            </section>
+
+            <!-- Stamps/Loyalty Section -->
+            <section id="stampsSection" class="section">
+                <button class="btn-back">← Volver</button>
+                <div class="card glass">
+                    <h2 class="card-title">Buscar Cliente</h2>
+
+                    <div class="search-options">
+                        <div class="search-box">
+                            <label>Por Teléfono</label>
+                            <input type="tel" id="searchClient" placeholder="Buscar por teléfono...">
+                        </div>
+
+                        <div class="divider">ó</div>
+
+                        <button id="advancedSearchBtn" class="btn-outline-full">
+                            🔍 Buscar por Nombre y Fecha
+                        </button>
+                    </div>
+
+                    <div id="clientDetails" class="client-details-card hidden">
+                        <div class="client-info-header">
+                            <h3 id="clientName">Nombre del Cliente</h3>
+                            <p id="clientMeta">Tel: ... | Miembro desde: ...</p>
+                            <p id="clientStats" style="font-size: 0.85rem; color: #666; margin-top: 5px;">Tarjetas
+                                llenas: 0 | Última visita: ---</p>
+                        </div>
+
+                        <div class="stamps-display">
+                            <div class="progress-container">
+                                <div class="progress-bar-bg">
+                                    <div id="progressBar" class="progress-bar-fill" style="width: 0%"></div>
+                                </div>
+                                <span class="progress-text"><span id="stampCount">0</span> / 8 sellos</span>
+                            </div>
+
+                            <div id="stampsGrid" class="stamps-grid">
+                                <!-- Generated by JS -->
+                            </div>
+                        </div>
+
+                        <button id="addStampBtn" class="btn-stamp">Agregar Sello 🧋</button>
+
+                        <div id="rewardBanner" class="reward-banner hidden">
+                            <div class="reward-content">
+                                <h3>🎉 ¡RECOMPENSA LISTA! 🎉</h3>
+                                <p>Un frappe gratis para este cliente</p>
+                                <div class="folio-box">
+                                    <span>Folio:</span>
+                                    <strong id="folioCode">---</strong>
+                                </div>
+                                <button id="redeemBtn" class="btn-redeem">Canjear Recompensa</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Management Section -->
+            <section id="manageSection" class="section">
+                <button class="btn-back">← Volver</button>
+                <div class="card glass">
+                    <h2 class="card-title">Gestión de Clientes</h2>
+                    <div class="import-tools">
+                        <label for="importCsv" class="btn-outline">
+                            📁 Importar Datos (CSV)
+                            <input type="file" id="importCsv" accept=".csv, .xlsx, .xls" hidden>
+                        </label>
+                    </div>
+                    <div class="search-box">
+                        <input type="text" id="filterClients" placeholder="Buscar por nombre o teléfono...">
+                    </div>
+                    <div id="clientsList" class="clients-list">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Rewards Registry Section -->
+            <section id="rewardsSection" class="section">
+                <button class="btn-back">← Volver</button>
+                <div class="card glass">
+                    <h2 class="card-title">Registro de Premios</h2>
+                    <div id="rewardsList" class="rewards-list">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Birthday of the Day Section -->
+            <section id="birthdaysSection" class="section">
+                <button class="btn-back">← Volver</button>
+                <div class="card glass">
+                    <h2 class="card-title">Cumpleañeros del Día</h2>
+                    <p id="todayDateLabel" class="text-center"></p>
+                    <div id="birthdaysList" class="clients-list">
+                        <!-- Generated by JS -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Modals (Hidden by default) -->
+            <div id="advancedSearchModal" class="modal hidden">
+                <div class="modal-content glass">
+                    <button class="btn-close">×</button>
+                    <h3>Búsqueda Avanzada</h3>
+                    <div class="form-group">
+                        <label>Nombre</label>
+                        <input type="text" id="advSearchName" placeholder="Nombre completo">
+                    </div>
+                    <div class="form-group">
+                        <label>Día y Mes (DD-MM)</label>
+                        <input type="text" id="advSearchBday" placeholder="DD-MM">
+                    </div>
+                    <button id="execAdvSearch" class="btn-submit">Buscar Cliente</button>
+                    <div id="advSearchResults" class="search-results-list"></div>
+                </div>
+            </div>
+
+
+            <!-- Edit Modal -->
+            <div id="editClientModal" class="modal hidden">
+                <div class="modal-content glass">
+                    <button class="btn-close">×</button>
+                    <h3>Editar Cliente</h3>
+                    <form id="editForm">
+                        <input type="hidden" id="editId">
+                        <div class="form-group">
+                            <label>Nombre</label>
+                            <input type="text" id="editName" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Teléfono</label>
+                            <input type="tel" id="editPhone" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Fecha Nacimiento</label>
+                            <input type="date" id="editBday" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Correo</label>
+                            <input type="email" id="editEmail">
+                        </div>
+                        <button type="submit" class="btn-submit">Guardar Cambios</button>
+                    </form>
+                </div>
+            </div>
+        </main>
+
+        <!-- Settings Modal (WhatsApp + Cloud) -->
+        <div id="settingsModal" class="modal hidden">
+            <div class="modal-content glass" style="max-height: 90vh; overflow-y: auto;">
+                <button class="btn-close">×</button>
+                <h2 class="card-title">Ajustes Generales</h2>
+
+                <div class="config-scroll-area">
+                    <!-- WhatsApp Section -->
+                    <h3 style="font-size: 1rem; margin-bottom: 10px; color: var(--primary-gradient-start);">📱 Mensajes
+                        de WhatsApp</h3>
+                    <div class="form-group">
+                        <label>Bienvenida</label>
+                        <textarea id="template_welcome" rows="3" class="wa-textarea"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Sello Acumulado</label>
+                        <textarea id="template_stamp" rows="3" class="wa-textarea"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Recompensa Lista</label>
+                        <textarea id="template_reward" rows="3" class="wa-textarea"></textarea>
+                    </div>
+
+                    <!-- Hidden Cloud Section (Internal Config Only) -->
+                    <div id="cloudSection" style="display: none !important;">
+                        <input type="url" id="cloudUrl">
+                        <input type="checkbox" id="chkAutoSync">
+                        <button id="btnTestCloud"></button>
+                        <button id="btnResetData"></button>
+                    </div>
+
+                    <div id="syncStatus" style="font-size: 0.7rem; margin-top: 15px; text-align: center; opacity: 0.6;">
+                        Nube: Activa
+                    </div>
+                    <div id="debugLogs" style="display: none;"></div>
+                </div>
+
+                <button id="saveSettings" class="btn-submit" style="margin-top: 15px;">Guardar Mensajes</button>
+            </div>
+        </div>
+
+        <div id="notification" class="notification hidden"></div>
+    </div>
+
+    <script src="src/main.js?v=4"></script>
+</body>
+
+
+</html>
