@@ -1,7 +1,9 @@
 /**
  * ROODS - Programa Cavernícolas Frecuentes
  * Main Business Logic & State Management - Consolidated Phase 3
+ * Version: 1.8.1 - Updated with prominent confirmations and registration flow fixes.
  */
+console.log("ROODS Loyalty App v1.8.1 Loaded - Confirmations Active");
 
 // --- Constants ---
 const STORAGE_KEY = 'loyaltyCustomers';
@@ -73,54 +75,74 @@ const app = {
 };
 
 // --- Initialization ---
-document.addEventListener('DOMContentLoaded', () => {
-    initNavigation();
-    initSearchEvents();
-    initManagementEvents();
-    initModals();
-    initAdvancedFeatures();
+function initApp() {
+    console.log("ROODS: Initializing App Logic...");
+    try {
+        initNavigation();
+        initSearchEvents();
+        initManagementEvents();
+        initModals();
+        initAdvancedFeatures();
+        initFormListeners(); // New: wrap top-level listeners
 
-    // Auto-Pull on Startup
-    if (cloudConfig.autoSync && cloudConfig.url) {
-        pullFromCloud(true); // silent pull
-    }
-
-    // Background Polling (Every 2 minutes)
-    setInterval(() => {
+        // Auto-Pull on Startup
         if (cloudConfig.autoSync && cloudConfig.url) {
-            pullFromCloud(true);
+            pullFromCloud(true); // silent pull
         }
-    }, 120000);
-});
+
+        // Background Polling (Every 2 minutes)
+        setInterval(() => {
+            if (cloudConfig.autoSync && cloudConfig.url) {
+                pullFromCloud(true);
+            }
+        }, 120000);
+
+        console.log("ROODS: App Ready 🚀");
+    } catch (e) {
+        console.error("ROODS: Initialization Error:", e);
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initApp);
+} else {
+    initApp();
+}
 
 function initAdvancedFeatures() {
     // Settings Button (WA + Cloud)
-    document.getElementById('btnSettings').onclick = () => {
-        // Load WA templates
-        document.getElementById('template_welcome').value = waTemplates.welcome;
-        document.getElementById('template_stamp').value = waTemplates.stamp;
-        document.getElementById('template_reward').value = waTemplates.reward;
+    const btnSettings = document.getElementById('btnSettings');
+    if (btnSettings) {
+        btnSettings.onclick = () => {
+            // Load WA templates
+            document.getElementById('template_welcome').value = waTemplates.welcome;
+            document.getElementById('template_stamp').value = waTemplates.stamp;
+            document.getElementById('template_reward').value = waTemplates.reward;
 
-        // Load Cloud config
-        document.getElementById('cloudUrl').value = cloudConfig.url;
-        document.getElementById('chkAutoSync').checked = cloudConfig.autoSync;
+            // Load Cloud config
+            document.getElementById('cloudUrl').value = cloudConfig.url;
+            document.getElementById('chkAutoSync').checked = cloudConfig.autoSync;
 
-        document.getElementById('settingsModal').classList.remove('hidden');
-    };
+            document.getElementById('settingsModal').classList.remove('hidden');
+        };
+    }
 
-    document.getElementById('saveSettings').onclick = () => {
-        // Save WA templates
-        waTemplates.welcome = document.getElementById('template_welcome').value;
-        waTemplates.stamp = document.getElementById('template_stamp').value;
-        waTemplates.reward = document.getElementById('template_reward').value;
-        localStorage.setItem(WA_TEMPLATES_KEY, JSON.stringify(waTemplates));
+    const btnSaveSettings = document.getElementById('saveSettings');
+    if (btnSaveSettings) {
+        btnSaveSettings.onclick = () => {
+            // Save WA templates
+            waTemplates.welcome = document.getElementById('template_welcome').value;
+            waTemplates.stamp = document.getElementById('template_stamp').value;
+            waTemplates.reward = document.getElementById('template_reward').value;
+            localStorage.setItem(WA_TEMPLATES_KEY, JSON.stringify(waTemplates));
 
-        // Note: cloudConfig is now internal
-        localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
+            // Note: cloudConfig is now internal
+            localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
 
-        document.getElementById('settingsModal').classList.add('hidden');
-        confirm('Ajustes de mensajes guardados correctamente 💾');
-    };
+            document.getElementById('settingsModal').classList.add('hidden');
+            confirm('Ajustes de mensajes guardados correctamente 💾');
+        };
+    }
 
     // Cloud configuration is now locked to code
     cloudConfig.url = userCloudUrl;
@@ -139,7 +161,8 @@ function initNavigation() {
 
 function showSection(id) {
     app.sections.forEach(s => s.classList.remove('active'));
-    document.getElementById(id).classList.add('active');
+    const section = document.getElementById(id);
+    if (section) section.classList.add('active');
 
     if (id === 'manageSection') renderClients();
     if (id === 'rewardsSection') renderRewards();
@@ -157,61 +180,109 @@ function initModals() {
     });
 }
 
-// --- Registration & Data ---
-app.regForm.addEventListener('submit', (e) => {
-    e.preventDefault();
+function initFormListeners() {
+    if (app.regForm) {
+        app.regForm.addEventListener('submit', (e) => {
+            e.preventDefault();
 
-    const day = app.regBdayDay.value.padStart(2, '0');
-    const month = app.regBdayMonth.value;
-    const year = app.regBdayYear.value || '2000'; // Default year if not provided
+            const day = app.regBdayDay.value.padStart(2, '0');
+            const month = app.regBdayMonth.value;
+            const year = app.regBdayYear.value || '2000'; // Default year if not provided
 
-    const phoneNum = document.getElementById('regPhone').value.trim();
-    const cleanPhone = phoneNum.replace(/\D/g, '');
+            const phoneNum = document.getElementById('regPhone').value.trim();
+            const cleanPhone = phoneNum.replace(/\D/g, '');
 
-    // CHECK FOR DUPLICATES
-    const exists = customers.find(c => c.phone.replace(/\D/g, '') === cleanPhone);
-    if (exists) {
-        // IMPROVEMENT: Use confirm to ensure the user reads it
-        confirm(`¡Atención! Este número de teléfono ya está registrado a nombre de: ${exists.name}`);
-        return; // Stop registration
+            // CHECK FOR DUPLICATES
+            const exists = customers.find(c => c.phone.replace(/\D/g, '') === cleanPhone);
+            if (exists) {
+                // IMPROVEMENT: Use confirm to ensure the user reads it
+                confirm(`¡Atención! Este número de teléfono ya está registrado a nombre de: ${exists.name}`);
+                return; // Stop registration
+            }
+
+            const client = {
+                id: 'C' + Date.now(),
+                name: document.getElementById('regName').value.trim(),
+                bday: `${year}-${month}-${day}`, // Store as YYYY-MM-DD
+                bday_day: day,
+                bday_month: month,
+                bday_year_optional: app.regBdayYear.value ? year : null,
+                phone: document.getElementById('regPhone').value.trim(),
+                stamps: 0,
+                totalStamps: 0,
+                regDate: new Date().toISOString(),
+                lastPurchase: null,
+                rewards: []
+            };
+
+            customers.push(client);
+            save();
+
+            // IMPROVEMENT: Registration success message requiring confirmation
+            confirm(`¡Cavernícola registrado con éxito! 🥩`);
+
+            // Optional Welcome Message
+            if (confirm("¿Deseas enviar mensaje de bienvenida por WhatsApp?")) {
+                sendDigitalCard(client);
+            }
+
+            app.regForm.reset();
+
+            // Prompt for first stamp
+            if (confirm("¿Deseas agregar su primer sello ahora mismo?")) {
+                showSection('stampsSection');
+                loadClient(client);
+            } else {
+                showSection('menuSection');
+            }
+        });
     }
 
-    const client = {
-        id: 'C' + Date.now(),
-        name: document.getElementById('regName').value.trim(),
-        bday: `${year}-${month}-${day}`, // Store as YYYY-MM-DD
-        bday_day: day,
-        bday_month: month,
-        bday_year_optional: app.regBdayYear.value ? year : null,
-        phone: document.getElementById('regPhone').value.trim(),
-        stamps: 0,
-        totalStamps: 0,
-        regDate: new Date().toISOString(),
-        lastPurchase: null,
-        rewards: []
-    };
+    if (app.addStampBtn) {
+        app.addStampBtn.addEventListener('click', () => {
+            currentCustomer.stamps++;
+            currentCustomer.totalStamps++;
+            currentCustomer.lastPurchase = new Date().toISOString();
+            save();
+            updateUI();
 
-    customers.push(client);
-    save();
+            // IMPROVEMENT: Prominent confirmation
+            confirm('¡Sello registrado con éxito! 🥩');
 
-    // IMPROVEMENT: Registration success message requiring confirmation
-    confirm(`¡Cavernícola registrado con éxito! 🥩`);
-
-    // Optional Welcome Message
-    if (confirm("¿Deseas enviar mensaje de bienvenida por WhatsApp?")) {
-        sendDigitalCard(client);
+            // Check if a new reward was just completed
+            if (currentCustomer.stamps > 0 && currentCustomer.stamps % 8 === 0) {
+                const folio = currentCustomer.rewards[currentCustomer.rewards.length - 1].folio;
+                if (confirm(`¡Tarjeta llena! 🎉 ¿Deseas enviar el certificado de regalo (${folio}) por WhatsApp?`)) {
+                    sendReward(currentCustomer, folio);
+                }
+            } else {
+                // Sello WhatsApp
+                const progress = currentCustomer.stamps % 8;
+                if (confirm(`Sello agregado (${progress}/8). ¿Deseas enviar el estatus actualizado por WhatsApp al cliente?`)) {
+                    sendStampMsg(currentCustomer);
+                }
+            }
+        });
     }
 
-    app.regForm.reset();
+    const redeemBtn = document.getElementById('redeemBtn');
+    if (redeemBtn) {
+        redeemBtn.addEventListener('click', () => {
+            const rIdx = currentCustomer.rewards.findIndex(r => !r.used);
+            if (rIdx > -1) {
+                const reward = currentCustomer.rewards[rIdx];
+                reward.used = true;
+                reward.usedDate = new Date().toISOString();
+                usedFolios.push(reward.folio);
+                localStorage.setItem(USED_FOLIOS_KEY, JSON.stringify(usedFolios));
 
-    // Prompt for first stamp
-    if (confirm("¿Deseas agregar su primer sello ahora mismo?")) {
-        showSection('stampsSection');
-        loadClient(client);
-    } else {
-        showSection('menuSection');
+                save();
+                updateUI();
+                showNotification('¡Premio canjeado! Folio registrado.');
+            }
+        });
     }
-});
+}
 
 // --- Search Logic ---
 function initSearchEvents() {
