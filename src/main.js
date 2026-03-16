@@ -104,9 +104,31 @@ function initApp() {
 }
 
 if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initApp);
+    document.addEventListener('DOMContentLoaded', () => {
+        sanitizeData();
+        initApp();
+    });
 } else {
+    sanitizeData();
     initApp();
+}
+
+function sanitizeData() {
+    // Remove totally corrupted or ghost clients (no ID, no Name)
+    const beforeCount = customers.length;
+    customers = customers.filter(c => c && c.id && c.name && c.id.trim() !== '' && c.name.trim() !== '');
+    
+    // Fix broken rewards structures
+    customers.forEach(c => {
+        if (!c.rewards || !Array.isArray(c.rewards)) {
+            c.rewards = [];
+        }
+    });
+    
+    if (customers.length !== beforeCount) {
+        console.warn(`ROODS: Sanitized ${beforeCount - customers.length} corrupted client records.`);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
+    }
 }
 
 function initAdvancedFeatures() {
@@ -147,6 +169,21 @@ function initAdvancedFeatures() {
     // Cloud configuration is now locked to code
     cloudConfig.url = userCloudUrl;
     cloudConfig.autoSync = true;
+
+    // Reset Local Data Button
+    const btnBorrarDatos = document.getElementById('btnBorrarDatosLocales');
+    if (btnBorrarDatos) {
+        btnBorrarDatos.onclick = () => {
+            if (confirm('⚠️ ATENCIÓN: Esto borrará TODOS los clientes y premios de este dispositivo. ¿Estás seguro?')) {
+                if (confirm('¿Completamente seguro? Esta acción no se puede deshacer.')) {
+                    localStorage.removeItem(STORAGE_KEY);
+                    localStorage.removeItem(USED_FOLIOS_KEY);
+                    alert('Datos locales borrados. La aplicación se recargará en blanco.');
+                    location.reload();
+                }
+            }
+        };
+    }
 }
 
 function initNavigation() {
@@ -193,7 +230,7 @@ function initFormListeners() {
             const cleanPhone = phoneNum.replace(/\D/g, '');
 
             // CHECK FOR DUPLICATES
-            const exists = customers.find(c => c.phone.replace(/\D/g, '') === cleanPhone);
+            const exists = customers.find(c => (c.phone || '').toString().replace(/\D/g, '') === cleanPhone);
             if (exists) {
                 // IMPROVEMENT: Use confirm to ensure the user reads it
                 confirm(`¡Atención! Este número de teléfono ya está registrado a nombre de: ${exists.name}`);
@@ -294,7 +331,7 @@ function initSearchEvents() {
 
         if (val.length >= 7) {
             searchTimeout = setTimeout(() => {
-                const found = customers.find(c => c.phone.replace(/\D/g, '').includes(val));
+                const found = customers.find(c => (c.phone || '').toString().replace(/\D/g, '').includes(val));
                 if (found) loadClient(found);
             }, 300);
         } else {
@@ -439,47 +476,7 @@ function updateCooldown() {
     }
 }
 
-app.addStampBtn.addEventListener('click', () => {
-    currentCustomer.stamps++;
-    currentCustomer.totalStamps++;
-    currentCustomer.lastPurchase = new Date().toISOString();
-    save();
-    updateUI();
-
-    // IMPROVEMENT: Prominent confirmation
-    confirm('¡Sello registrado con éxito! 🥩');
-
-    // Check if a new reward was just completed
-    if (currentCustomer.stamps > 0 && currentCustomer.stamps % 8 === 0) {
-        const folio = currentCustomer.rewards[currentCustomer.rewards.length - 1].folio;
-        if (confirm(`¡Tarjeta llena! 🎉 ¿Deseas enviar el certificado de regalo (${folio}) por WhatsApp?`)) {
-            sendReward(currentCustomer, folio);
-        }
-    } else {
-        // Sello WhatsApp
-        const progress = currentCustomer.stamps % 8;
-        if (confirm(`Sello agregado (${progress}/8). ¿Deseas enviar el estatus actualizado por WhatsApp al cliente?`)) {
-            sendStampMsg(currentCustomer);
-        }
-    }
-});
-
-document.getElementById('redeemBtn').addEventListener('click', () => {
-    const rIdx = currentCustomer.rewards.findIndex(r => !r.used);
-    if (rIdx > -1) {
-        const reward = currentCustomer.rewards[rIdx];
-        reward.used = true;
-        reward.usedDate = new Date().toISOString();
-        usedFolios.push(reward.folio);
-        localStorage.setItem(USED_FOLIOS_KEY, JSON.stringify(usedFolios));
-
-        // Note: we DON'T reset currentCustomer.stamps to 0 anymore
-        // because we allow accumulation. The stamps count remains.
-        save();
-        updateUI();
-        showNotification('¡Premio canjeado! Folio registrado.');
-    }
-});
+// removed duplicate event listeners for addStampBtn and redeemBtn
 
 // --- Management & Edit ---
 function initManagementEvents() {
@@ -631,7 +628,7 @@ window.sendBirthdayGreeting = (id) => {
     const c = customers.find(x => x.id === id);
     if (!c) return;
     const msg = `¡Feliz Cumpleaños ${c.name}! 🎂🥩\n\nEn ROODS queremos celebrar contigo. Te invitamos a pasar hoy por un obsequio especial.\n\n¡Te esperamos!`;
-    window.open(`https://wa.me/${c.phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/${(c.phone || '').toString().replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
 };
 
 // --- CSV Import (Migration) ---
@@ -807,19 +804,19 @@ function formatBday(val) {
 function sendDigitalCard(c) {
     let msg = waTemplates.welcome || defaultTemplates.welcome;
     msg = msg.replace(/{nombre}/g, c.name).replace(/{id}/g, c.id);
-    window.open(`https://wa.me/${c.phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/${(c.phone || '').toString().replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 function sendStampMsg(c) {
     let msg = waTemplates.stamp || defaultTemplates.stamp;
     msg = msg.replace(/{nombre}/g, c.name).replace(/{sellos}/g, c.stamps % 8 === 0 ? 8 : c.stamps % 8);
-    window.open(`https://wa.me/${c.phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/${(c.phone || '').toString().replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 function sendReward(c, folio) {
     let msg = waTemplates.reward || defaultTemplates.reward;
     msg = msg.replace(/{nombre}/g, c.name).replace(/{folio}/g, folio);
-    window.open(`https://wa.me/${c.phone.replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/${(c.phone || '').toString().replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
 }
 
 // --- Cloud Sync Implementation ---
@@ -861,20 +858,56 @@ async function pullFromCloud(silent = false) {
     try {
         const response = await fetch(url);
         const data = await response.json();
+        
         if (data && Array.isArray(data) && data.length > 0) {
-            // Very basic merge logic: only update if size is different or data is newer 
-            // (In a real app, we'd compare timestamps per client)
-            customers = data;
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
-            if (window.location.hash === '#manageSection') renderClients();
+            let changesMade = false;
+
+            data.forEach(cloudClient => {
+                // Ignore empty rows coming from sheets
+                if (!cloudClient || !cloudClient.id || cloudClient.id.trim() === '') return;
+                
+                // Validate stamps as numbers
+                const parsedStamps = parseInt(cloudClient.stamps) || 0;
+                const parsedTotalStamps = parseInt(cloudClient.totalStamps) || 0;
+                
+                const localClientIndex = customers.findIndex(c => c.id === cloudClient.id);
+                
+                if (localClientIndex > -1) {
+                    // Client exists, only update stamps if they are higher (merge logic)
+                    // CAUTION: Do NOT overrwite name/phone/rewards to prevent data corruption
+                    // from mismatched google sheets columns.
+                    if (parsedStamps > customers[localClientIndex].stamps || parsedTotalStamps > customers[localClientIndex].totalStamps) {
+                         customers[localClientIndex].stamps = Math.max(customers[localClientIndex].stamps, parsedStamps);
+                         customers[localClientIndex].totalStamps = Math.max(customers[localClientIndex].totalStamps, parsedTotalStamps);
+                         changesMade = true;
+                    }
+                } else {
+                    // New client from cloud (was registered elsewhere)
+                    // Ensure valid rewards structure since GS might return a raw number
+                    cloudClient.rewards = Array.isArray(cloudClient.rewards) ? cloudClient.rewards : [];
+                    cloudClient.stamps = parsedStamps;
+                    cloudClient.totalStamps = parsedTotalStamps;
+                    // Provide fallback just in case GS name is completely broken
+                    cloudClient.name = (cloudClient.name && cloudClient.name.trim() !== '') ? cloudClient.name : 'Cliente Anónimo (' + cloudClient.id + ')';
+                    
+                    customers.push(cloudClient);
+                    changesMade = true;
+                }
+            });
+
+            if (changesMade) {
+               localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
+               if (window.location.hash === '#manageSection') renderClients();
+            }
+
             if (!silent) {
-                showNotification('Datos descargados ✅');
+                showNotification('Datos analizados y actualizados ✅');
                 document.getElementById('syncStatus').textContent = 'Base actualizada';
             }
         }
     } catch (e) {
         console.error(e);
-        if (!silent) alert('Error al descargar: ' + e.message);
+        if (!silent) alert('Error al procesar datos: ' + e.message);
     }
 }
 
