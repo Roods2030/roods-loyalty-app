@@ -19,12 +19,12 @@
         <div class="bg-blur blur-2"></div>
 
         <header class="main-header">
+            <div id="globalSyncIndicator" class="sync-indicator">☁️ Al día</div>
             <div class="logo-container">
                 <img src="Logo-Roods.png" alt="ROODS Logo" class="main-logo-img" id="mainLogo">
             </div>
             <p class="tagline">Programa Cavernícolas Frecuentes</p>
-            <div style="font-size: 0.6rem; opacity: 0.5; text-align: center; margin-top: 5px;">v1.8.1 - Actualizada 11
-                Marzo</div>
+            <div style="font-size: 0.6rem; opacity: 0.5; text-align: center; margin-top: 5px;">v1.8.2 - Actualizada</div>
         </header>
 
         <main class="content-area">
@@ -118,6 +118,10 @@
                             <input type="tel" id="regPhone" placeholder="+52 ..." required>
                         </div>
                         <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; color: var(--primary-gradient-start);">
+                                <input type="checkbox" id="regAddStamp" checked style="width: auto; transform: scale(1.2);">
+                                🧋 Registrar el 1er Sello Automáticamente
+                            </label>
                         </div>
                         <button type="submit" class="btn-submit">Registrar Cliente</button>
                     </form>

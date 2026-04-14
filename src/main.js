@@ -252,6 +252,13 @@ function initFormListeners() {
                 rewards: []
             };
 
+            const regAddStamp = document.getElementById('regAddStamp');
+            if (regAddStamp && regAddStamp.checked) {
+                client.stamps = 1;
+                client.totalStamps = 1;
+                client.lastPurchase = new Date().toISOString();
+            }
+
             customers.push(client);
             save();
 
@@ -264,14 +271,7 @@ function initFormListeners() {
             }
 
             app.regForm.reset();
-
-            // Prompt for first stamp
-            if (confirm("¿Deseas agregar su primer sello ahora mismo?")) {
-                showSection('stampsSection');
-                loadClient(client);
-            } else {
-                showSection('menuSection');
-            }
+            showSection('menuSection');
         });
     }
 
@@ -501,7 +501,11 @@ function initManagementEvents() {
 
 function renderClients() {
     const filter = app.filterClients.value.toLowerCase();
-    const filtered = customers.filter(c => c.name.toLowerCase().includes(filter) || (c.phone && c.phone.includes(filter)));
+    const filtered = customers.filter(c => {
+        const n = String(c.name || '').toLowerCase();
+        const p = String(c.phone || '').toLowerCase();
+        return n.includes(filter) || p.includes(filter);
+    });
 
     app.clientsList.innerHTML = filtered.length === 0 ? '<p class="text-center">No hay clientes</p>' : '';
     filtered.forEach(c => {
@@ -597,7 +601,7 @@ function renderBirthdays() {
     const birthdayBoys = customers.filter(c => {
         const cDay = c.bday_day || (c.bday && c.bday.split('-')[2]);
         const cMonth = c.bday_month || (c.bday && c.bday.split('-')[1]);
-        return cDay === todayDay && cMonth === todayMonth;
+        return String(cDay || '').padStart(2, '0') === todayDay && String(cMonth || '').padStart(2, '0') === todayMonth;
     });
 
     app.birthdaysList.innerHTML = '';
@@ -820,12 +824,26 @@ function sendReward(c, folio) {
 }
 
 // --- Cloud Sync Implementation ---
+function setGlobalSyncSyncing() {
+    const el = document.getElementById('globalSyncIndicator');
+    if(el) { el.textContent = '☁️ Sincronizando...'; el.className = 'sync-indicator sync-active'; }
+}
+function setGlobalSyncSuccess() {
+    const el = document.getElementById('globalSyncIndicator');
+    if(el) { el.textContent = '☁️ Datos al día'; el.className = 'sync-indicator'; }
+}
+function setGlobalSyncError() {
+    const el = document.getElementById('globalSyncIndicator');
+    if(el) { el.textContent = '⚠️ Sin conexión'; el.className = 'sync-indicator sync-error'; }
+}
+
 async function pushToCloud(silent = false) {
     cloudConfig.url = document.getElementById('cloudUrl').value.trim() || cloudConfig.url;
     if (!cloudConfig.url) return silent ? null : alert('Ingresa la URL de Google Script');
     localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
 
     if (!silent) document.getElementById('syncStatus').textContent = 'Subiendo...';
+    setGlobalSyncSyncing();
     try {
         // Anti-CORS Strategy: text/plain + no-cors avoids preflight OPTIONS
         const response = await fetch(cloudConfig.url, {
@@ -841,12 +859,14 @@ async function pushToCloud(silent = false) {
             const logsArea = document.getElementById('debugLogs');
             if (logsArea) logsArea.textContent = 'Enviado (Modo Anti-CORS)';
         }
+        setGlobalSyncSuccess();
     } catch (e) {
         console.error('Cloud Sync Error:', e);
         if (!silent) {
             document.getElementById('syncStatus').textContent = 'Error de conexión';
             showNotification('⚠️ Error al subir a la nube');
         }
+        setGlobalSyncError();
     }
 }
 
@@ -855,6 +875,7 @@ async function pullFromCloud(silent = false) {
     if (!url) return silent ? null : alert('Ingresa la URL de Google Script');
 
     if (!silent) document.getElementById('syncStatus').textContent = 'Bajando...';
+    setGlobalSyncSyncing();
     try {
         const response = await fetch(url);
         const data = await response.json();
@@ -873,21 +894,15 @@ async function pullFromCloud(silent = false) {
                 const localClientIndex = customers.findIndex(c => c.id === cloudClient.id);
                 
                 if (localClientIndex > -1) {
-                    // Client exists, only update stamps if they are higher (merge logic)
-                    // CAUTION: Do NOT overrwite name/phone/rewards to prevent data corruption
-                    // from mismatched google sheets columns.
                     if (parsedStamps > customers[localClientIndex].stamps || parsedTotalStamps > customers[localClientIndex].totalStamps) {
                          customers[localClientIndex].stamps = Math.max(customers[localClientIndex].stamps, parsedStamps);
                          customers[localClientIndex].totalStamps = Math.max(customers[localClientIndex].totalStamps, parsedTotalStamps);
                          changesMade = true;
                     }
                 } else {
-                    // New client from cloud (was registered elsewhere)
-                    // Ensure valid rewards structure since GS might return a raw number
                     cloudClient.rewards = Array.isArray(cloudClient.rewards) ? cloudClient.rewards : [];
                     cloudClient.stamps = parsedStamps;
                     cloudClient.totalStamps = parsedTotalStamps;
-                    // Provide fallback just in case GS name is completely broken
                     cloudClient.name = (cloudClient.name && cloudClient.name.trim() !== '') ? cloudClient.name : 'Cliente Anónimo (' + cloudClient.id + ')';
                     
                     customers.push(cloudClient);
@@ -905,9 +920,11 @@ async function pullFromCloud(silent = false) {
                 document.getElementById('syncStatus').textContent = 'Base actualizada';
             }
         }
+        setGlobalSyncSuccess();
     } catch (e) {
         console.error(e);
         if (!silent) alert('Error al procesar datos: ' + e.message);
+        setGlobalSyncError();
     }
 }
 
