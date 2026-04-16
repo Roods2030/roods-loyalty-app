@@ -566,8 +566,24 @@ window.editClient = (id) => {
     document.getElementById('editClientModal').classList.remove('hidden');
 };
 
-window.deleteClient = (id) => {
+window.deleteClient = async (id) => {
     if (confirm('¿Estás seguro de borrar a este cliente?')) {
+        // Borrar primero en la nube
+        const sb = getSupabase();
+        if (sb) {
+            setGlobalSyncSyncing();
+            try {
+                const { error } = await sb.from('customers').delete().eq('id', id);
+                if (error) throw error;
+                setGlobalSyncSuccess();
+            } catch (e) {
+                console.error("Error deleting from cloud:", e);
+                alert('🚨 Error: No se pudo borrar el cliente de la base de datos (revisa tu conexión a internet):\n' + e.message);
+                setGlobalSyncError();
+                return; // Detenemos el borrado local para que no reaparezca después 
+            }
+        }
+
         customers = customers.filter(c => c.id !== id);
         save();
         renderClients();
