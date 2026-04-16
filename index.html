@@ -299,12 +299,21 @@
                         <textarea id="template_reward" rows="3" class="wa-textarea"></textarea>
                     </div>
 
-                    <!-- Hidden Cloud Section (Internal Config Only) -->
-                    <div id="cloudSection" style="display: none !important;">
-                        <input type="url" id="cloudUrl">
-                        <input type="checkbox" id="chkAutoSync">
-                        <button id="btnTestCloud"></button>
-                        <button id="btnResetData"></button>
+                    <!-- Cloud Section (Supabase Config) -->
+                    <div id="cloudSection" style="margin-top: 20px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.1);">
+                        <h3 style="font-size: 1rem; margin-bottom: 10px; color: var(--primary-gradient-start);">☁️ Conexión Supabase</h3>
+                        <div class="form-group">
+                            <label>Project URL (https://...)</label>
+                            <input type="url" id="cloudUrl" placeholder="https://tu-proyecto.supabase.co">
+                        </div>
+                        <div class="form-group">
+                            <label>API Key (anon, public)</label>
+                            <input type="password" id="cloudKey" placeholder="eyJhbGciOiJIUzI1NiIsIn...">
+                        </div>
+                        <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; cursor: pointer; color: var(--text-color); margin-top: 10px;">
+                            <input type="checkbox" id="chkAutoSync" style="width: auto; transform: scale(1.2);">
+                            Sincronización Automática
+                        </label>
                     </div>
 
                     <div id="syncStatus" style="font-size: 0.7rem; margin-top: 15px; text-align: center; opacity: 0.6;">
@@ -328,7 +337,9 @@
         <div id="notification" class="notification hidden"></div>
     </div>
 
-    <script src="src/main.js?v=5"></script>
+    <!-- SDK de Supabase -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="src/main.js?v=6"></script>
 </body>
 
 

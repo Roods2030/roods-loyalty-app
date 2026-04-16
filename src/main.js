@@ -26,8 +26,18 @@ const defaultTemplates = {
 };
 
 let waTemplates = JSON.parse(localStorage.getItem(WA_TEMPLATES_KEY)) || defaultTemplates;
-const userCloudUrl = 'https://script.google.com/macros/s/AKfycbzAZ_QCVDQ7fLmWDoH9gahUBzaUfKBa71b2grJXcPaSeFe9HlcKz4rxDSXhbc3i0Pnnew/exec';
-let cloudConfig = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)) || { url: userCloudUrl, autoSync: true };
+// Migrating cloud config to include Supabase credentials
+let cloudConfig = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)) || { url: '', key: '', autoSync: true };
+let supabaseClient = null;
+
+function getSupabase() {
+    if (supabaseClient) return supabaseClient;
+    if (cloudConfig.url && cloudConfig.key && window.supabase) {
+        supabaseClient = window.supabase.createClient(cloudConfig.url, cloudConfig.key);
+        return supabaseClient;
+    }
+    return null;
+}
 
 // --- DOM References ---
 const app = {
@@ -142,7 +152,8 @@ function initAdvancedFeatures() {
             document.getElementById('template_reward').value = waTemplates.reward;
 
             // Load Cloud config
-            document.getElementById('cloudUrl').value = cloudConfig.url;
+            document.getElementById('cloudUrl').value = cloudConfig.url || '';
+            document.getElementById('cloudKey').value = cloudConfig.key || '';
             document.getElementById('chkAutoSync').checked = cloudConfig.autoSync;
 
             document.getElementById('settingsModal').classList.remove('hidden');
@@ -158,17 +169,21 @@ function initAdvancedFeatures() {
             waTemplates.reward = document.getElementById('template_reward').value;
             localStorage.setItem(WA_TEMPLATES_KEY, JSON.stringify(waTemplates));
 
-            // Note: cloudConfig is now internal
+            // Save Cloud config
+            const newUrl = document.getElementById('cloudUrl').value.trim();
+            const newKey = document.getElementById('cloudKey').value.trim();
+            if (newUrl !== cloudConfig.url || newKey !== cloudConfig.key) {
+                supabaseClient = null; // force re-init
+            }
+            cloudConfig.url = newUrl;
+            cloudConfig.key = newKey;
+            cloudConfig.autoSync = document.getElementById('chkAutoSync').checked;
             localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
 
             document.getElementById('settingsModal').classList.add('hidden');
-            confirm('Ajustes de mensajes guardados correctamente 💾');
+            confirm('Ajustes guardados correctamente 💾');
         };
     }
-
-    // Cloud configuration is now locked to code
-    cloudConfig.url = userCloudUrl;
-    cloudConfig.autoSync = true;
 
     // Reset Local Data Button
     const btnBorrarDatos = document.getElementById('btnBorrarDatosLocales');
@@ -838,64 +853,55 @@ function setGlobalSyncError() {
 }
 
 async function pushToCloud(silent = false) {
-    cloudConfig.url = document.getElementById('cloudUrl').value.trim() || cloudConfig.url;
-    if (!cloudConfig.url) return silent ? null : alert('Ingresa la URL de Google Script');
-    localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
+    const sb = getSupabase();
+    if (!sb) return silent ? null : alert('Aún no configuras los datos de Supabase en Ajustes (URL y API Key).');
 
     if (!silent) document.getElementById('syncStatus').textContent = 'Subiendo...';
     setGlobalSyncSyncing();
     try {
-        // Anti-CORS Strategy: text/plain + no-cors avoids preflight OPTIONS
-        const response = await fetch(cloudConfig.url, {
-            method: 'POST',
-            mode: 'no-cors',
-            headers: { 'Content-Type': 'text/plain' },
-            body: JSON.stringify(customers)
-        });
+        const { error } = await sb.from('customers').upsert(customers);
+        if (error) throw error;
 
         if (!silent) {
             showNotification('Sincronización enviada ☁️');
             document.getElementById('syncStatus').textContent = 'Última: ' + new Date().toLocaleTimeString();
-            const logsArea = document.getElementById('debugLogs');
-            if (logsArea) logsArea.textContent = 'Enviado (Modo Anti-CORS)';
         }
         setGlobalSyncSuccess();
     } catch (e) {
-        console.error('Cloud Sync Error:', e);
+        console.error('Supabase Push Error:', e);
         if (!silent) {
-            document.getElementById('syncStatus').textContent = 'Error de conexión';
-            showNotification('⚠️ Error al subir a la nube');
+            document.getElementById('syncStatus').textContent = 'Error de conexión DB';
+            showNotification('⚠️ Error al subir a Supabase');
         }
         setGlobalSyncError();
     }
 }
 
 async function pullFromCloud(silent = false) {
-    const url = document.getElementById('cloudUrl').value.trim() || cloudConfig.url;
-    if (!url) return silent ? null : alert('Ingresa la URL de Google Script');
+    const sb = getSupabase();
+    if (!sb) return silent ? null : alert('Aún no configuras los datos de Supabase en Ajustes.');
 
     if (!silent) document.getElementById('syncStatus').textContent = 'Bajando...';
     setGlobalSyncSyncing();
     try {
-        const response = await fetch(url);
-        const data = await response.json();
+        const { data, error } = await sb.from('customers').select('*');
+        if (error) throw error;
         
         if (data && Array.isArray(data) && data.length > 0) {
             let changesMade = false;
 
             data.forEach(cloudClient => {
-                // Ignore empty rows coming from sheets
                 if (!cloudClient || !cloudClient.id || cloudClient.id.trim() === '') return;
                 
-                // Validate stamps as numbers
                 const parsedStamps = parseInt(cloudClient.stamps) || 0;
-                const parsedTotalStamps = parseInt(cloudClient.totalStamps) || 0;
+                const parsedTotalStamps = parseInt(cloudClient.totalStamps) || parseInt(cloudClient.totalStamps) || 0;
                 
                 const localClientIndex = customers.findIndex(c => c.id === cloudClient.id);
                 
                 if (localClientIndex > -1) {
                     if (parsedStamps > customers[localClientIndex].stamps || parsedTotalStamps > customers[localClientIndex].totalStamps) {
                          customers[localClientIndex].stamps = Math.max(customers[localClientIndex].stamps, parsedStamps);
+                         // Handle casing difference since SQL might lower-case totalStamps
                          customers[localClientIndex].totalStamps = Math.max(customers[localClientIndex].totalStamps, parsedTotalStamps);
                          changesMade = true;
                     }
@@ -916,13 +922,13 @@ async function pullFromCloud(silent = false) {
             }
 
             if (!silent) {
-                showNotification('Datos analizados y actualizados ✅');
+                showNotification('Datos descargados y actualizados ✅');
                 document.getElementById('syncStatus').textContent = 'Base actualizada';
             }
         }
         setGlobalSyncSuccess();
     } catch (e) {
-        console.error(e);
+        console.error('Supabase Pull Error:', e);
         if (!silent) alert('Error al procesar datos: ' + e.message);
         setGlobalSyncError();
     }
