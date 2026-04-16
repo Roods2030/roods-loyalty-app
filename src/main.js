@@ -33,8 +33,17 @@ let supabaseClient = null;
 function getSupabase() {
     if (supabaseClient) return supabaseClient;
     if (cloudConfig.url && cloudConfig.key && window.supabase) {
-        supabaseClient = window.supabase.createClient(cloudConfig.url, cloudConfig.key);
-        return supabaseClient;
+        try {
+            if (!cloudConfig.url.startsWith('http')) {
+                alert('🚨 Error: La URL de Supabase debe empezar con https://');
+                return null;
+            }
+            supabaseClient = window.supabase.createClient(cloudConfig.url, cloudConfig.key);
+            return supabaseClient;
+        } catch (err) {
+            alert('🚨 Error al conectar con Supabase: ' + err.message);
+            return null;
+        }
     }
     return null;
 }
@@ -869,8 +878,9 @@ async function pushToCloud(silent = false) {
         setGlobalSyncSuccess();
     } catch (e) {
         console.error('Supabase Push Error:', e);
+        alert('🚨 Error alojando a Supabase:\n' + e.message); // Explicit error display
         if (!silent) {
-            document.getElementById('syncStatus').textContent = 'Error de conexión DB';
+            document.getElementById('syncStatus').textContent = 'Error: ' + e.message;
             showNotification('⚠️ Error al subir a Supabase');
         }
         setGlobalSyncError();
