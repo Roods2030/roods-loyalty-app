@@ -5,6 +5,11 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ROODS | Loyalty Program</title>
+    <!-- PWA Config -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#e01a8f">
+    <link rel="apple-touch-icon" href="assets/icons/icon.png">
+    
     <link rel="stylesheet" href="src/style.css?v=4">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -190,12 +195,7 @@
                 <button class="btn-back">← Volver</button>
                 <div class="card glass">
                     <h2 class="card-title">Gestión de Clientes</h2>
-                    <div class="import-tools">
-                        <label for="importCsv" class="btn-outline">
-                            📁 Importar Datos (CSV)
-                            <input type="file" id="importCsv" accept=".csv, .xlsx, .xls" hidden>
-                        </label>
-                    </div>
+
                     <div class="search-box">
                         <input type="text" id="filterClients" placeholder="Buscar por nombre o teléfono...">
                     </div>
@@ -340,6 +340,21 @@
     <!-- SDK de Supabase -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="src/main.js?v=6"></script>
+
+    <!-- PWA Service Worker Registration -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('./sw.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registrado con éxito', registration.scope);
+                    })
+                    .catch(err => {
+                        console.error('Error al registrar ServiceWorker', err);
+                    });
+            });
+        }
+    </script>
 </body>
 
 

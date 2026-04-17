@@ -155,6 +155,11 @@ function initAdvancedFeatures() {
     const btnSettings = document.getElementById('btnSettings');
     if (btnSettings) {
         btnSettings.onclick = () => {
+            const pin = prompt("Ingrese PIN de administrador para acceder a los ajustes:");
+            if (pin !== "231217") {
+                alert("PIN incorrecto. Acceso denegado.");
+                return;
+            }
             // Load WA templates
             document.getElementById('template_welcome').value = waTemplates.welcome;
             document.getElementById('template_stamp').value = waTemplates.stamp;
@@ -171,7 +176,7 @@ function initAdvancedFeatures() {
 
     const btnSaveSettings = document.getElementById('saveSettings');
     if (btnSaveSettings) {
-        btnSaveSettings.onclick = () => {
+        btnSaveSettings.onclick = async () => {
             // Save WA templates
             waTemplates.welcome = document.getElementById('template_welcome').value;
             waTemplates.stamp = document.getElementById('template_stamp').value;
@@ -189,8 +194,18 @@ function initAdvancedFeatures() {
             cloudConfig.autoSync = document.getElementById('chkAutoSync').checked;
             localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
 
+            // Sync settings to cloud
+            const sb = getSupabase();
+            if (sb) {
+                try {
+                    await sb.from('settings').upsert({ key: 'waTemplates', value: waTemplates });
+                } catch (e) {
+                    console.error('Error saving settings to cloud:', e);
+                }
+            }
+
             document.getElementById('settingsModal').classList.add('hidden');
-            confirm('Ajustes guardados correctamente 💾');
+            confirm('Ajustes guardados e intentar sincronizar correctamente 💾');
         };
     }
 
@@ -910,6 +925,13 @@ async function pullFromCloud(silent = false) {
     if (!silent) document.getElementById('syncStatus').textContent = 'Bajando...';
     setGlobalSyncSyncing();
     try {
+        // Sync WA templates from settings
+        const { data: setts, error: errSetts } = await sb.from('settings').select('*').eq('key', 'waTemplates').maybeSingle();
+        if (!errSetts && setts && setts.value) {
+            waTemplates = setts.value;
+            localStorage.setItem(WA_TEMPLATES_KEY, JSON.stringify(waTemplates));
+        }
+
         const { data, error } = await sb.from('customers').select('*');
         if (error) throw error;
         
