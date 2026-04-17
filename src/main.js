@@ -931,11 +931,26 @@ async function pullFromCloud(silent = false) {
                 const localClientIndex = customers.findIndex(c => c.id === cloudClient.id);
                 
                 if (localClientIndex > -1) {
-                    if (parsedStamps > customers[localClientIndex].stamps || parsedTotalStamps > customers[localClientIndex].totalStamps) {
-                         customers[localClientIndex].stamps = Math.max(customers[localClientIndex].stamps, parsedStamps);
-                         // Handle casing difference since SQL might lower-case totalStamps
-                         customers[localClientIndex].totalStamps = Math.max(customers[localClientIndex].totalStamps, parsedTotalStamps);
-                         changesMade = true;
+                    let local = customers[localClientIndex];
+                    let oldStr = JSON.stringify(local);
+                    
+                    local.stamps = Math.max(local.stamps || 0, parsedStamps);
+                    local.totalStamps = Math.max(local.totalStamps || 0, parsedTotalStamps);
+                    
+                    local.name = cloudClient.name || local.name;
+                    local.phone = cloudClient.phone || local.phone;
+                    local.email = cloudClient.email !== undefined ? cloudClient.email : local.email;
+                    local.bday = cloudClient.bday || local.bday;
+                    local.bday_day = cloudClient.bday_day || local.bday_day;
+                    local.bday_month = cloudClient.bday_month || local.bday_month;
+                    local.lastPurchase = cloudClient.lastPurchase || local.lastPurchase;
+                    
+                    if (Array.isArray(cloudClient.rewards) && cloudClient.rewards.length > (local.rewards ? local.rewards.length : 0)) {
+                        local.rewards = cloudClient.rewards;
+                    }
+                    
+                    if (oldStr !== JSON.stringify(local)) {
+                        changesMade = true;
                     }
                 } else {
                     cloudClient.rewards = Array.isArray(cloudClient.rewards) ? cloudClient.rewards : [];
