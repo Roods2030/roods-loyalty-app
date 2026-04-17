@@ -26,18 +26,18 @@ const defaultTemplates = {
 };
 
 let waTemplates = JSON.parse(localStorage.getItem(WA_TEMPLATES_KEY)) || defaultTemplates;
-// Migrating cloud config to include Supabase credentials
-let cloudConfig = JSON.parse(localStorage.getItem(CLOUD_CONFIG_KEY)) || { url: '', key: '', autoSync: true };
+// Hardcoded Supabase Config
+let cloudConfig = { 
+    url: 'https://ilxdmxuvsefkqijeodlv.supabase.co', 
+    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlseGRteHV2c2Vma3FpamVvZGx2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyOTQzNDAsImV4cCI6MjA5MTg3MDM0MH0.9R2bGdEKX-Jdtjcp0OW7Mq63XX7bVPWhR9pB_FC98dI', 
+    autoSync: true 
+};
 let supabaseClient = null;
 
 function getSupabase() {
     if (supabaseClient) return supabaseClient;
-    if (cloudConfig.url && cloudConfig.key && window.supabase) {
+    if (window.supabase) {
         try {
-            if (!cloudConfig.url.startsWith('http')) {
-                alert('🚨 Error: La URL de Supabase debe empezar con https://');
-                return null;
-            }
             supabaseClient = window.supabase.createClient(cloudConfig.url, cloudConfig.key);
             return supabaseClient;
         } catch (err) {
@@ -165,11 +165,6 @@ function initAdvancedFeatures() {
             document.getElementById('template_stamp').value = waTemplates.stamp;
             document.getElementById('template_reward').value = waTemplates.reward;
 
-            // Load Cloud config
-            document.getElementById('cloudUrl').value = cloudConfig.url || '';
-            document.getElementById('cloudKey').value = cloudConfig.key || '';
-            document.getElementById('chkAutoSync').checked = cloudConfig.autoSync;
-
             document.getElementById('settingsModal').classList.remove('hidden');
         };
     }
@@ -183,17 +178,6 @@ function initAdvancedFeatures() {
             waTemplates.reward = document.getElementById('template_reward').value;
             localStorage.setItem(WA_TEMPLATES_KEY, JSON.stringify(waTemplates));
 
-            // Save Cloud config
-            const newUrl = document.getElementById('cloudUrl').value.trim();
-            const newKey = document.getElementById('cloudKey').value.trim();
-            if (newUrl !== cloudConfig.url || newKey !== cloudConfig.key) {
-                supabaseClient = null; // force re-init
-            }
-            cloudConfig.url = newUrl;
-            cloudConfig.key = newKey;
-            cloudConfig.autoSync = document.getElementById('chkAutoSync').checked;
-            localStorage.setItem(CLOUD_CONFIG_KEY, JSON.stringify(cloudConfig));
-
             // Sync settings to cloud
             const sb = getSupabase();
             if (sb) {
@@ -205,7 +189,7 @@ function initAdvancedFeatures() {
             }
 
             document.getElementById('settingsModal').classList.add('hidden');
-            confirm('Ajustes guardados e intentar sincronizar correctamente 💾');
+            confirm('Ajustes guardados correctamente 💾');
         };
     }
 
