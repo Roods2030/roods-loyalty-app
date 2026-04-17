@@ -1,4 +1,4 @@
-const CACHE_NAME = 'roods-pwa-v1';
+const CACHE_NAME = 'roods-pwa-v2';
 
 // Install event - skip waiting to ensure service worker activates immediately
 self.addEventListener('install', (event) => {
