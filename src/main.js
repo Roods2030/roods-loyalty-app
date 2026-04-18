@@ -916,8 +916,28 @@ async function pullFromCloud(silent = false) {
             localStorage.setItem(WA_TEMPLATES_KEY, JSON.stringify(waTemplates));
         }
 
-        const { data, error } = await sb.from('customers').select('*');
-        if (error) throw error;
+        let allData = [];
+        let limit = 1000;
+        let from = 0;
+        let fetchMore = true;
+
+        while (fetchMore) {
+            const { data, error } = await sb.from('customers').select('*').range(from, from + limit - 1);
+            if (error) throw error;
+            
+            if (data && data.length > 0) {
+                allData = allData.concat(data);
+                if (data.length < limit) {
+                    fetchMore = false;
+                } else {
+                    from += limit;
+                }
+            } else {
+                fetchMore = false;
+            }
+        }
+        
+        const data = allData;
         
         if (data && Array.isArray(data) && data.length > 0) {
             let changesMade = false;
