@@ -348,6 +348,8 @@ function initFormListeners() {
 function initSearchEvents() {
     // Phone Search - Optimized to prevent freezing
     let searchTimeout;
+    let lastPromptedPhone = null; // Evitar multiples preguntas para el mismo numero
+    
     app.phoneSearch.addEventListener('input', (e) => {
         clearTimeout(searchTimeout);
         const val = e.target.value.replace(/\D/g, '');
@@ -355,10 +357,43 @@ function initSearchEvents() {
         if (val.length >= 7) {
             searchTimeout = setTimeout(() => {
                 const found = customers.find(c => (c.phone || '').toString().replace(/\D/g, '').includes(val));
-                if (found) loadClient(found);
-            }, 300);
+                if (found) {
+                    loadClient(found);
+                    lastPromptedPhone = null;
+                } else {
+                    app.clientDetails.classList.add('hidden');
+                    if (val.length === 10 && lastPromptedPhone !== val) {
+                        lastPromptedPhone = val;
+                        if (confirm(`El teléfono no está registrado. ¿Deseas registrar este número?`)) {
+                            app.phoneSearch.value = '';
+                            showSection('registerSection');
+                            document.getElementById('regPhone').value = val;
+                        }
+                    }
+                }
+            }, 400);
         } else {
             app.clientDetails.classList.add('hidden');
+            if (val.length < 10) {
+                lastPromptedPhone = null;
+            }
+        }
+    });
+
+    app.phoneSearch.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const val = e.target.value.replace(/\D/g, '');
+            if (val.length > 0) {
+                const found = customers.find(c => (c.phone || '').toString().replace(/\D/g, '').includes(val));
+                if (!found && lastPromptedPhone !== val) {
+                    lastPromptedPhone = val;
+                    if (confirm(`El teléfono no está registrado. ¿Deseas registrar este número?`)) {
+                        app.phoneSearch.value = '';
+                        showSection('registerSection');
+                        document.getElementById('regPhone').value = val;
+                    }
+                }
+            }
         }
     });
 
