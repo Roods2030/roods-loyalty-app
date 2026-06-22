@@ -22,10 +22,14 @@ const CLOUD_CONFIG_KEY = 'roods_cloud_config';
 const defaultTemplates = {
     welcome: "¡Bienvenido Cavernícola {nombre}! 🥩\n\nAquí tienes tu Tarjeta Digital de ROODS.\nCódigo Cliente: {id}",
     stamp: "¡Gracias por tu visita {nombre}! 🥩\n\nNuevo sello acumulado.\nTarjeta: {sellos}/8\n¡Falta poco!",
-    reward: "¡CERTIFICADO DE REGALO! 🎁\n\nCavernícola {nombre}, ¡ganaste una BEBIDA GRATIS! 🧋\n\nFolio: {folio}"
+    reward: "¡CERTIFICADO DE REGALO! 🎁\n\nCavernícola {nombre}, ¡ganaste una BEBIDA GRATIS! 🧋\n\nFolio: {folio}",
+    redeem: "¡Recompensa cobrada! 🎉\n\nCavernícola {nombre}, has canjeado tu premio con éxito.\nFolio: {folio}\n\n¡Gracias por tu preferencia! 🧋🥩"
 };
 
 let waTemplates = JSON.parse(localStorage.getItem(WA_TEMPLATES_KEY)) || defaultTemplates;
+if (!waTemplates.redeem) {
+    waTemplates.redeem = defaultTemplates.redeem;
+}
 // Hardcoded Supabase Config
 let cloudConfig = { 
     url: 'https://ilxdmxuvsefkqijeodlv.supabase.co', 
@@ -103,6 +107,7 @@ function initApp() {
         initModals();
         initAdvancedFeatures();
         initFormListeners(); // New: wrap top-level listeners
+        updateBirthdayReminder(); // Inicializar recordatorio de cumpleaños
 
         // Auto-Pull on Startup
         if (cloudConfig.autoSync && cloudConfig.url) {
@@ -164,6 +169,7 @@ function initAdvancedFeatures() {
             document.getElementById('template_welcome').value = waTemplates.welcome;
             document.getElementById('template_stamp').value = waTemplates.stamp;
             document.getElementById('template_reward').value = waTemplates.reward;
+            document.getElementById('template_redeem').value = waTemplates.redeem || defaultTemplates.redeem;
 
             document.getElementById('settingsModal').classList.remove('hidden');
         };
@@ -176,6 +182,7 @@ function initAdvancedFeatures() {
             waTemplates.welcome = document.getElementById('template_welcome').value;
             waTemplates.stamp = document.getElementById('template_stamp').value;
             waTemplates.reward = document.getElementById('template_reward').value;
+            waTemplates.redeem = document.getElementById('template_redeem').value;
             localStorage.setItem(WA_TEMPLATES_KEY, JSON.stringify(waTemplates));
 
             // Sync settings to cloud
@@ -227,6 +234,18 @@ function showSection(id) {
     if (id === 'manageSection') renderClients();
     if (id === 'rewardsSection') renderRewards();
     if (id === 'birthdaysSection') renderBirthdays();
+
+    // Clear search and reset inputs when returning to Stamps or Register
+    if (id === 'stampsSection') {
+        app.phoneSearch.value = '';
+        app.clientDetails.classList.add('hidden');
+        currentCustomer = null;
+    }
+    if (id === 'registerSection') {
+        app.regForm.reset();
+        const regAddStamp = document.getElementById('regAddStamp');
+        if (regAddStamp) regAddStamp.checked = true;
+    }
 }
 
 function initModals() {
@@ -255,8 +274,11 @@ function initFormListeners() {
             // CHECK FOR DUPLICATES
             const exists = customers.find(c => (c.phone || '').toString().replace(/\D/g, '') === cleanPhone);
             if (exists) {
-                // IMPROVEMENT: Use confirm to ensure the user reads it
-                confirm(`¡Atención! Este número de teléfono ya está registrado a nombre de: ${exists.name}`);
+                if (confirm(`¡Atención! Este número de teléfono ya está registrado a nombre de: ${exists.name}\n\n¿Deseas ir a la sección de "Agregar Sello" para este cliente?`)) {
+                    app.regForm.reset();
+                    showSection('stampsSection');
+                    window.loadClient(exists);
+                }
                 return; // Stop registration
             }
 
@@ -322,6 +344,11 @@ function initFormListeners() {
                     sendStampMsg(currentCustomer);
                 }
             }
+
+            // Clean up the search box and details after adding a stamp
+            app.phoneSearch.value = '';
+            app.clientDetails.classList.add('hidden');
+            currentCustomer = null;
         });
     }
 
@@ -339,6 +366,11 @@ function initFormListeners() {
                 save();
                 updateUI();
                 showNotification('¡Premio canjeado! Folio registrado.');
+
+                // Option to send WhatsApp message for claimed reward
+                if (confirm(`¡Recompensa cobrada con éxito! ¿Deseas enviar el comprobante de canje (${reward.folio}) por WhatsApp al cliente?`)) {
+                    sendRedeemMsg(currentCustomer, reward.folio);
+                }
             }
         });
     }
@@ -710,133 +742,135 @@ window.sendBirthdayGreeting = (id) => {
 };
 
 // --- CSV Import (Migration) ---
-app.importCsv.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
+if (app.importCsv) {
+    app.importCsv.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
 
-    if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
-        showNotification('⚠️ Error: Usa CSV (delimitado por comas).');
-        app.importCsv.value = '';
-        return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = (ev) => {
-        try {
-            const csvData = ev.target.result;
-            const lines = csvData.split(/\r?\n/).filter(line => line.trim() !== '');
-            if (lines.length < 2) throw new Error('Archivo vacío');
-
-            const delimiter = lines[0].includes(';') ? ';' : ',';
-
-            function parseCSVLine(line, d) {
-                const parts = [];
-                let current = '';
-                let inQuotes = false;
-                for (let i = 0; i < line.length; i++) {
-                    const char = line[i];
-                    if (char === '"' && line[i + 1] === '"') { // Handle escaped quotes ""
-                        current += '"';
-                        i++;
-                    } else if (char === '"') {
-                        inQuotes = !inQuotes;
-                    } else if (char === d && !inQuotes) {
-                        parts.push(current.trim());
-                        current = '';
-                    } else {
-                        current += char;
-                    }
-                }
-                parts.push(current.trim());
-                return parts;
-            }
-
-            const headers = parseCSVLine(lines[0], delimiter).map(h => h.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
-
-            const mapping = {
-                nombre: headers.findIndex(h => h.includes('nombre') || h.includes('name') || h.includes('cliente')),
-                tele: headers.findIndex(h => h.includes('numero') || h.includes('num') || h.includes('telefono') || h.includes('tel') || h.includes('cel') || h.includes('phone') || h.includes('movil') || h.includes('wa')),
-                cumple: headers.findIndex(h => h.includes('cumple') || h.includes('nacimiento') || h.includes('bday') || h.includes('fecha')),
-                dia: headers.findIndex(h => h === 'dia' || h === 'day'),
-                mes: headers.findIndex(h => h === 'mes' || h === 'month'),
-                ano: headers.findIndex(h => h === 'año' || h === 'year' || h === 'ano'),
-                lastPurchase: headers.findIndex(h => (h.includes('ultima') || h.includes('ultma')) && (h.includes('compra') || h.includes('visita') || h.includes('fehca') || h.includes('fecha'))),
-                total: -1
-            };
-
-            // Hierarchical Total Search
-            let tIdx = headers.findIndex(h => h.includes('stamps') || (h.includes('sello') && h.includes('acumulado')));
-            if (tIdx === -1) tIdx = headers.findIndex(h => h.includes('sellos'));
-            if (tIdx === -1) tIdx = headers.findIndex(h => h.includes('total') && h.includes('sello'));
-            if (tIdx === -1) tIdx = headers.findIndex(h => h.includes('total') && !h.includes('compra') && !h.includes('paga'));
-            mapping.total = tIdx;
-
-            if (mapping.nombre === -1 || mapping.tele === -1) throw new Error('Columnas Nombre/Teléfono no detectadas');
-
-            let count = 0;
-            lines.slice(1).forEach(l => {
-                const parts = parseCSVLine(l, delimiter);
-                if (parts[mapping.nombre] && parts[mapping.tele]) {
-                    let bdayFormatted = '2000-01-01';
-
-                    if (mapping.dia !== -1 && mapping.mes !== -1) {
-                        const d = parts[mapping.dia].trim().padStart(2, '0');
-                        const m = parts[mapping.mes].trim().padStart(2, '0');
-                        const y = (mapping.ano !== -1 && parts[mapping.ano]) ? parts[mapping.ano].trim() : '2000';
-                        bdayFormatted = `${y}-${m}-${d}`;
-                    } else if (mapping.cumple !== -1) {
-                        bdayFormatted = formatBday(parts[mapping.cumple]);
-                    }
-
-                    const [y, m, d] = bdayFormatted.split('-');
-
-                    let totalRaw = parts[mapping.total] || '0';
-                    totalRaw = totalRaw.toString().split('.')[0].replace(/[^\d]/g, '');
-                    const totalStamps = parseInt(totalRaw) || 0;
-
-                    // IMPORT LOGIC: Historical stamps count towards redeemed rewards
-                    const historicalRewardsCount = Math.floor(totalStamps / 8);
-                    const currentStamps = totalStamps % 8;
-                    const rewardsArr = [];
-
-                    for (let i = 0; i < historicalRewardsCount; i++) {
-                        rewardsArr.push({
-                            folio: 'HIST-' + genFolio(),
-                            date: new Date().toISOString(),
-                            used: true,
-                            usedDate: new Date().toISOString()
-                        });
-                    }
-
-                    customers.push({
-                        id: 'M' + Date.now() + Math.random().toString(36).substr(2, 4).toUpperCase(),
-                        name: parts[mapping.nombre].trim(),
-                        phone: parts[mapping.tele].trim(),
-                        bday: bdayFormatted,
-                        bday_day: d,
-                        bday_month: m,
-                        bday_year_optional: (y !== '2000') ? y : null,
-                        stamps: currentStamps,
-                        totalStamps: totalStamps,
-                        regDate: new Date().toISOString(),
-                        lastPurchase: (mapping.lastPurchase !== -1 && parts[mapping.lastPurchase]) ? formatBday(parts[mapping.lastPurchase]) : null,
-                        rewards: rewardsArr
-                    });
-                    count++;
-                }
-            });
-
-            save();
-            renderClients();
-            showNotification(`¡${count} migrados! 🥩`);
-            app.importCsv.value = '';
-        } catch (err) {
-            showNotification(`Error: ${err.message}`);
-            app.importCsv.value = '';
+        if (file.name.endsWith('.xlsx') || file.name.endsWith('.xls')) {
+            showNotification('⚠️ Error: Usa CSV (delimitado por comas).');
+            if (app.importCsv) app.importCsv.value = '';
+            return;
         }
-    };
-    reader.readAsText(file);
-});
+
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const csvData = ev.target.result;
+                const lines = csvData.split(/\r?\n/).filter(line => line.trim() !== '');
+                if (lines.length < 2) throw new Error('Archivo vacío');
+
+                const delimiter = lines[0].includes(';') ? ';' : ',';
+
+                function parseCSVLine(line, d) {
+                    const parts = [];
+                    let current = '';
+                    let inQuotes = false;
+                    for (let i = 0; i < line.length; i++) {
+                        const char = line[i];
+                        if (char === '"' && line[i + 1] === '"') { // Handle escaped quotes ""
+                            current += '"';
+                            i++;
+                        } else if (char === '"') {
+                            inQuotes = !inQuotes;
+                        } else if (char === d && !inQuotes) {
+                            parts.push(current.trim());
+                            current = '';
+                        } else {
+                            current += char;
+                        }
+                    }
+                    parts.push(current.trim());
+                    return parts;
+                }
+
+                const headers = parseCSVLine(lines[0], delimiter).map(h => h.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, ""));
+
+                const mapping = {
+                    nombre: headers.findIndex(h => h.includes('nombre') || h.includes('name') || h.includes('cliente')),
+                    tele: headers.findIndex(h => h.includes('numero') || h.includes('num') || h.includes('telefono') || h.includes('tel') || h.includes('cel') || h.includes('phone') || h.includes('movil') || h.includes('wa')),
+                    cumple: headers.findIndex(h => h.includes('cumple') || h.includes('nacimiento') || h.includes('bday') || h.includes('fecha')),
+                    dia: headers.findIndex(h => h === 'dia' || h === 'day'),
+                    mes: headers.findIndex(h => h === 'mes' || h === 'month'),
+                    ano: headers.findIndex(h => h === 'año' || h === 'year' || h === 'ano'),
+                    lastPurchase: headers.findIndex(h => (h.includes('ultima') || h.includes('ultma')) && (h.includes('compra') || h.includes('visita') || h.includes('fehca') || h.includes('fecha'))),
+                    total: -1
+                };
+
+                // Hierarchical Total Search
+                let tIdx = headers.findIndex(h => h.includes('stamps') || (h.includes('sello') && h.includes('acumulado')));
+                if (tIdx === -1) tIdx = headers.findIndex(h => h.includes('sellos'));
+                if (tIdx === -1) tIdx = headers.findIndex(h => h.includes('total') && h.includes('sello'));
+                if (tIdx === -1) tIdx = headers.findIndex(h => h.includes('total') && !h.includes('compra') && !h.includes('paga'));
+                mapping.total = tIdx;
+
+                if (mapping.nombre === -1 || mapping.tele === -1) throw new Error('Columnas Nombre/Teléfono no detectadas');
+
+                let count = 0;
+                lines.slice(1).forEach(l => {
+                    const parts = parseCSVLine(l, delimiter);
+                    if (parts[mapping.nombre] && parts[mapping.tele]) {
+                        let bdayFormatted = '2000-01-01';
+
+                        if (mapping.dia !== -1 && mapping.mes !== -1) {
+                            const d = parts[mapping.dia].trim().padStart(2, '0');
+                            const m = parts[mapping.mes].trim().padStart(2, '0');
+                            const y = (mapping.ano !== -1 && parts[mapping.ano]) ? parts[mapping.ano].trim() : '2000';
+                            bdayFormatted = `${y}-${m}-${d}`;
+                        } else if (mapping.cumple !== -1) {
+                            bdayFormatted = formatBday(parts[mapping.cumple]);
+                        }
+
+                        const [y, m, d] = bdayFormatted.split('-');
+
+                        let totalRaw = parts[mapping.total] || '0';
+                        totalRaw = totalRaw.toString().split('.')[0].replace(/[^\d]/g, '');
+                        const totalStamps = parseInt(totalRaw) || 0;
+
+                        // IMPORT LOGIC: Historical stamps count towards redeemed rewards
+                        const historicalRewardsCount = Math.floor(totalStamps / 8);
+                        const currentStamps = totalStamps % 8;
+                        const rewardsArr = [];
+
+                        for (let i = 0; i < historicalRewardsCount; i++) {
+                            rewardsArr.push({
+                                folio: 'HIST-' + genFolio(),
+                                date: new Date().toISOString(),
+                                used: true,
+                                usedDate: new Date().toISOString()
+                            });
+                        }
+
+                        customers.push({
+                            id: 'M' + Date.now() + Math.random().toString(36).substr(2, 4).toUpperCase(),
+                            name: parts[mapping.nombre].trim(),
+                            phone: parts[mapping.tele].trim(),
+                            bday: bdayFormatted,
+                            bday_day: d,
+                            bday_month: m,
+                            bday_year_optional: (y !== '2000') ? y : null,
+                            stamps: currentStamps,
+                            totalStamps: totalStamps,
+                            regDate: new Date().toISOString(),
+                            lastPurchase: (mapping.lastPurchase !== -1 && parts[mapping.lastPurchase]) ? formatBday(parts[mapping.lastPurchase]) : null,
+                            rewards: rewardsArr
+                        });
+                        count++;
+                    }
+                });
+
+                save();
+                renderClients();
+                showNotification(`¡${count} migrados! 🥩`);
+                if (app.importCsv) app.importCsv.value = '';
+            } catch (err) {
+                showNotification(`Error: ${err.message}`);
+                if (app.importCsv) app.importCsv.value = '';
+            }
+        };
+        reader.readAsText(file);
+    });
+}
 
 function formatBday(val) {
     if (!val) return '2000-01-01';
@@ -893,6 +927,12 @@ function sendStampMsg(c) {
 
 function sendReward(c, folio) {
     let msg = waTemplates.reward || defaultTemplates.reward;
+    msg = msg.replace(/{nombre}/g, c.name).replace(/{folio}/g, folio);
+    window.open(`https://wa.me/${(c.phone || '').toString().replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
+}
+
+function sendRedeemMsg(c, folio) {
+    let msg = waTemplates.redeem || defaultTemplates.redeem;
     msg = msg.replace(/{nombre}/g, c.name).replace(/{folio}/g, folio);
     window.open(`https://wa.me/${(c.phone || '').toString().replace(/\D/g, '')}?text=${encodeURIComponent(msg)}`, '_blank');
 }
@@ -1020,6 +1060,7 @@ async function pullFromCloud(silent = false) {
 
             if (changesMade) {
                localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
+               updateBirthdayReminder();
                if (window.location.hash === '#manageSection') renderClients();
             }
 
@@ -1028,6 +1069,7 @@ async function pullFromCloud(silent = false) {
                 document.getElementById('syncStatus').textContent = 'Base actualizada';
             }
         }
+        updateBirthdayReminder();
         setGlobalSyncSuccess();
     } catch (e) {
         console.error('Supabase Pull Error:', e);
@@ -1039,6 +1081,7 @@ async function pullFromCloud(silent = false) {
 // --- Utils ---
 function save() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(customers));
+    updateBirthdayReminder();
     if (cloudConfig.autoSync && cloudConfig.url) {
         pushToCloud(true); // Silent push on change
     }
@@ -1050,3 +1093,67 @@ function showNotification(msg) {
     app.notif.classList.remove('hidden');
     setTimeout(() => app.notif.classList.remove('show'), 3000);
 }
+
+// --- Birthday Reminder Helpers ---
+function getTodayDateString() {
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+}
+
+function getTodayBirthdays() {
+    const today = new Date();
+    const todayDay = String(today.getDate()).padStart(2, '0');
+    const todayMonth = String(today.getMonth() + 1).padStart(2, '0');
+    
+    return customers.filter(c => {
+        const cDay = c.bday_day || (c.bday && c.bday.split('-')[2]);
+        const cMonth = c.bday_month || (c.bday && c.bday.split('-')[1]);
+        return String(cDay || '').padStart(2, '0') === todayDay && String(cMonth || '').padStart(2, '0') === todayMonth;
+    });
+}
+
+window.updateBirthdayReminder = function() {
+    const banner = document.getElementById('birthdayReminderBanner');
+    if (!banner) return;
+
+    const birthdaysToday = getTodayBirthdays();
+    if (birthdaysToday.length === 0) {
+        banner.classList.add('hidden');
+        return;
+    }
+
+    const todayStr = getTodayDateString();
+    const sentKey = `birthdays_sent_${todayStr}`;
+    const isSent = localStorage.getItem(sentKey) === 'true';
+
+    banner.classList.remove('hidden', 'success');
+
+    if (isSent) {
+        banner.classList.add('success');
+        banner.innerHTML = `
+            <div class="birthday-banner-header">
+                <p class="birthday-banner-title">✅ Cumpleañeros felicitados (${birthdaysToday.length})</p>
+                <button class="birthday-banner-action" id="btnToggleBirthdays" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid white;">Desmarcar</button>
+            </div>
+        `;
+    } else {
+        banner.innerHTML = `
+            <div class="birthday-banner-header">
+                <p class="birthday-banner-title">🎂 ¡Tienes ${birthdaysToday.length} cumpleañero(s) hoy!</p>
+                <button class="birthday-banner-action" id="btnToggleBirthdays">Marcar como Enviado</button>
+            </div>
+        `;
+    }
+
+    document.getElementById('btnToggleBirthdays').onclick = () => {
+        if (isSent) {
+            localStorage.removeItem(sentKey);
+        } else {
+            localStorage.setItem(sentKey, 'true');
+        }
+        updateBirthdayReminder();
+    };
+};

@@ -36,6 +36,7 @@
             <!-- Navigation Grid -->
             <section id="menuSection" class="section active">
                 <h2 class="section-title">¿Qué deseas hacer hoy?</h2>
+                <div id="birthdayReminderBanner" class="birthday-reminder-banner hidden"></div>
                 <div class="menu-grid">
                     <button class="menu-card primary" data-section="register">
                         <span class="card-icon">👤</span>
@@ -297,6 +298,10 @@
                     <div class="form-group">
                         <label>Recompensa Lista</label>
                         <textarea id="template_reward" rows="3" class="wa-textarea"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>Recompensa Canjeada/Cobrada</label>
+                        <textarea id="template_redeem" rows="3" class="wa-textarea"></textarea>
                     </div>
 
                     <div id="syncStatus" style="font-size: 0.7rem; margin-top: 15px; text-align: center; opacity: 0.6;">
